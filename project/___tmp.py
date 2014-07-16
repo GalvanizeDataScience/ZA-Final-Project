@@ -3,12 +3,15 @@ import os
 import pymongo
 from cache import get_cache
 
-def traverse_dict(d):
+URLS = ('url', 'urls')
+
+def __traverse(in_dict, lookup):
+    d = in_dict.copy()
     for k, v in d.iteritems():
-        if k in ('url', 'urls') and type(v) == dict:
-            d[k] = d[k].keys()
+        if k in lookup and type(v) == dict:
+            d[k] = d[k].items()
         elif type(v) == dict:
-            d[k] = traverse_dict(v)
+            d[k] = __traverse(v, lookup)
     return d
 
 
@@ -21,7 +24,7 @@ def store_in_mongo():
     coll = db.data
 
     for f in FILES:
-
+        print f
         fn = f.split('/')[2]
 
         if fn[0] == '.': continue
@@ -36,9 +39,12 @@ def store_in_mongo():
 
         if ctype == 'tweets':
             for i in range(len(data)):
-                data[i] = traverse_dict(data[i])
+                data[i] = __traverse(data[i], URLS)
 
         if ctype in ('info'):
-            data = traverse_dict(data)
+            data = __traverse(data, URLS)
 
         coll.insert({'id': uid, 'type': ctype, 'data': data})
+
+if __name__ == '__main__':
+    store_in_mongo()

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
+import pymongo
 
 BASE_ADDRESS = '../cache/'
 
@@ -12,6 +13,12 @@ def get_cache(user_id, cache_type, file_type):
 
     return:
     '''
+
+    # conn = pymongo.MongoClient("localhost", 27017)
+    # db = conn.twitter
+    # coll = db.data
+    # return coll.find_one{'id': user_id, 'type': cache_type})
+
 
     file_name = str(user_id) + '_' + cache_type + '.' + file_type
 
@@ -43,15 +50,22 @@ def get_cache(user_id, cache_type, file_type):
     return data
 
 
-def make_cache(data, user_id, cache_type, file_type):
+def make_cache(data, user_id, cache_type, file_type=None):
     '''
     data:
     user_id:
     cache_type:
-    file_type:
+    file_type: DEPRECATED
 
     return:
     '''
+
+    # conn = pymongo.MongoClient("localhost", 27017)
+    # db = conn.twitter
+    # coll = db.data
+    # tmp = coll.insert({'id': user_id, 'type': cache_type, 'data': data})
+    #
+
     if file_type == 'csv':
         to_write = ','.join(map(str, data))
 

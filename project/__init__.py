@@ -1,24 +1,24 @@
 # -*- coding: utf-8 -*-
 from utils import oauth_login
 from data import get_user_data, get_follower_data
-#from make_graph import make_graph
 
-api_path = '../api_keys/'
+API_PATH = '../api_keys/'
 
-screen_name = 'ZipfianAcademy'
-user_id = 1244850380
-#screen_name = 'graphlabteam'
+def runtime(api_path, screen_name=None, user_id=None):
 
-apis = oauth_login(api_path)[3:]
+    apis = oauth_login(API_PATH)
 
-target, target_tweets, followers, following, user_lists = \
-    get_user_data(apis[2], screen_name=screen_name, user_id=user_id)
+    target_data = get_user_data(apis[0],
+                                screen_name=screen_name,
+                                user_id=user_id)
 
-print target['id']
-ind = followers.index(562363) + 1
+    if target_data:
+        target, target_tweets, followers, following, user_lists = target_data
+    else:
+        raise Exception('TargetError')
 
-data = get_follower_data(apis, followers[ind:])
-#g = make_graph(target['id'], followers, apis)
+    data_dict = get_follower_data(apis, followers)
+    print len(data_dict.keys())
 
 
 def thinking_about_this_stuff():
@@ -45,3 +45,15 @@ def thinking_about_this_stuff():
 
     partitions = [[k for k in p1.keys() if p1[k] == v]
                      for v in set(p1.values())]
+
+if __name__ == '__main__':
+    # screen_name = 'graphlabteam'
+    # user_id = None
+
+    # screen_name = 'ZipfianAcademy'
+    # user_id = 1244850380
+
+    screen_name = 'Saber_Metrics'
+    user_id = None
+
+    runtime(API_PATH, screen_name=screen_name, user_id=user_id)
