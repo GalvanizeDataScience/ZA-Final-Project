@@ -26,17 +26,17 @@ def get_user_info(api, user_id=None, screen_name=None):
     '''
 
     if user_id:
-        user_info = get_cache(user_id, 'info', 'json')
+        user_info = get_cache(user_id, 'info')
 
         if user_info == None:
             user_info = api.GetUser(user_id=user_id).AsDict()
             user_info = __traverse(user_info, ('url', 'urls'))
-            make_cache(user_info, user_info['id'], 'info', 'json')
+            make_cache(user_info, user_info['id'], 'info')
 
     else:
         user_info = api.GetUser(screen_name=screen_name).AsDict()
         user_info = __traverse(user_info, URLS)
-        make_cache(user_info, user_info['id'], 'info', 'json')
+        make_cache(user_info, user_info['id'], 'info')
 
     return user_info
 
@@ -48,14 +48,14 @@ def get_user_tweets(api, user_id):
 
     return: List of integer ids following the user_id
     '''
-    tweets = get_cache(user_id, 'tweets', 'jsonlist')
+    tweets = get_cache(user_id, 'tweets')
 
     if tweets == None:
         tweets = api.GetUserTimeline(user_id = user_id,
                                      count = 200,
                                      trim_user = True)
         tweets = [__traverse(tweet.AsDict(), URLS) for tweet in tweets]
-        make_cache(tweets, user_id, 'tweets', 'jsonlist')
+        make_cache(tweets, user_id, 'tweets')
 
     return tweets
 
@@ -68,11 +68,11 @@ def get_user_followers(api, user_id):
     return: List of integer ids following the user_id
     '''
 
-    followers = get_cache(user_id, 'followers', 'csv')
+    followers = get_cache(user_id, 'followers')
 
     if followers == None:
         followers = api.GetFollowerIDs(user_id = user_id)
-        make_cache(followers, user_id, 'followers', 'csv')
+        make_cache(followers, user_id, 'followers')
 
     return followers
 
@@ -85,11 +85,11 @@ def get_user_following(api, user_id):
     return: List of integer ids following the user_id
     '''
 
-    following = get_cache(user_id, 'following', 'csv')
+    following = get_cache(user_id, 'following')
 
     if following == None:
         following = api.GetFriendIDs(user_id = user_id)
-        make_cache(following, user_id, 'following', 'csv')
+        make_cache(following, user_id, 'following')
 
     return following
 
@@ -103,12 +103,12 @@ def get_user_lists(api, user_id=None, screen_name=None):
     return: twitter.user object
     '''
 
-    user_lists = get_cache(user_id, 'list', 'jsonlist')
+    user_lists = get_cache(user_id, 'list')
 
     if user_lists == None:
         user_lists = api.GetListsList(None, user_id=user_id)
         user_lists = [__traverse(ul.AsDict(), URLS) for ul in user_lists]
-        make_cache(user_lists, user_id, 'list', 'jsonlist')
+        make_cache(user_lists, user_id, 'list')
 
     return user_lists
 
@@ -188,19 +188,15 @@ def get_follower_data(apis, followers, parse_data=False, as_df=False):
 
         user_data = get_user_data(apis[n], user_id=id)
 
-        if parse_data:
-            result[id] = parse_user_data(user_data)
+        result[id] = parse_user_data(user_data, parse_data)
 
-        else:
-            uinfo, utweets, ufollowers, ufollowing, ulists = user_data
-            result[id] = {'info': uinfo,
-                          'tweets': utweets,
-                          'followers': ufollowers,
-                          'following': ufollowing,
-                          'lists': ulists}
 
-    if parse_data and as_df:
+    if as_df:
         import pandas as pd
-        return pd.DataFrame(data=result)
+        # transpose so that user_id are rows and columsn are the fields
+        # dropna() will remove users that had protected or overly large
+        # follower/friends lists. It will NOT remove users with no tweets / no
+        # lists
+        return pd.DataFrame(data=result).transpose().dropna()
 
     return result

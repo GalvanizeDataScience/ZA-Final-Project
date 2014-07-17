@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
-import graphlab
-from graphlab import Vertex
-from graphlab import Edge
+import networkx as nx
+import community
 
 
-def make_edges(source, target, weight=None):
+def make_edges(source, target, weights=None):
     '''
     source: String/Integer or List of source
     target: String/Integer or List of target
+    weights: List of Integer/Floats. Must be the same size as either the
+    target or source
 
-    return: List of Edge(source, target) objects
+    return: List of [source, target, weight] objects
     '''
 
     source = source if type(source) == list else [source]
@@ -22,8 +23,7 @@ def make_edges(source, target, weight=None):
         elif len(source) < len(target) and len(source) == 1:
             source *= len(target)
 
-    #return [Edge(int(x),int(y)) for x,y in zip(source, target)]
-    return [(int(x), int(y)) for x, y in zip(source, target)]
+    return [(x,y,float(z)) for x,y,z in zip(source,target,weights)]
 
 
 def make_verts(source_id, attrs = None):
@@ -33,36 +33,32 @@ def make_verts(source_id, attrs = None):
     :return:
     '''
 
-    if not attrs:
-        return Vertex(source_id)
 
-    else:
-        return Vertex(source_id, attr=attrs)
+def make_partitions(g, optimize=True):
 
+    p0 = community.best_partition(g)
 
-def make_graph(target_id, followers, apis, update=False):
+    if not optimize:
+        return p0
 
-    #cache_path = '../cache/_graphs/'
-    #file_name  = str(target_id) + '.graph'
+    p1 = community.best_partition(g, partition=p0)
 
-    #if os.path.isfile(cache_path + file_name) and not update:
-    #   return gl.load_graph(cache_path + file_name)
+    while p0 != p1:
+        p0 = community.best_partition(g, partition=p1)
+        p1 = community.best_partition(g, partition=p0)
 
-    g - graphlab.SGraph()
-
-    verts = [make_verts(target_id)]
-
-    edges = make_edges(followers, target_id)
-
-    verts.append(make_verts(id))
-
-    #if fol_followers: edges.extend(make_edges(fol_followers, id))
-
-    #if fol_following: edges.extend(make_edges(id, fol_following))
+    return [[k for k in p1.keys() if p1[k] == v] for v in set(p1.values())]
 
 
-    #g = gl.SGraph().add_vertices(verts).add_edges(edges)
+def make_graph(df, partitions=False, optimize=False):
 
-    #g.save(cache_path + file_name)
+    edges = make_graph(target['id'], followers, apis)
+
+    g = nx.Graph(data=edges)
+
+    if partitions:
+        return g, make_partitions(g, optimize=optimize)
 
     return g
+
+
