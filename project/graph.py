@@ -1,40 +1,51 @@
 # -*- coding: utf-8 -*-
 import networkx as nx
+import matplotlib.pyplot as plt
 import community
 
 
-def make_edges(source, target, weights=None):
-    '''
-    source: String/Integer or List of source
-    target: String/Integer or List of target
-    weights: List of Integer/Floats. Must be the same size as either the
-    target or source
+# Source: https://www.udacity.com/wiki/creating-network-graphs-with-python
+def draw_nx_graph(G, labels=None, graph_layout='shell',
+               node_size=200, node_color='blue', node_alpha=0.3,
+               node_text_size=12,
+               edge_color='blue', edge_alpha=0.3, edge_thickness=1,
+               edge_text_pos=0.3,
+               text_font='sans-serif'):
 
-    return: List of [source, target, weight] objects
-    '''
+    # these are different layouts for the network you may try
+    # shell seems to work best
+    if graph_layout == 'spring':
+        graph_pos = nx.spring_layout(G)
+    elif graph_layout == 'spectral':
+        graph_pos = nx.spectral_layout(G)
+    elif graph_layout == 'random':
+        graph_pos = nx.random_layout(G)
+    else:
+        graph_pos = nx.shell_layout(G)
 
-    source = source if type(source) == list else [source]
-    target = target if type(target) == list else [target]
+    # draw graph
+    nx.draw_networkx_nodes(G, graph_pos, node_size=node_size,
+                           alpha=node_alpha, node_color=node_color)
 
-    if len(source) != len(target):
-        if len(source) > len(target) and len(target) == 1:
-            target *= len(source)
+    nx.draw_networkx_edges(G, graph_pos, width=edge_thickness,
+                           alpha=edge_alpha, edge_color=edge_color)
 
-        elif len(source) < len(target) and len(source) == 1:
-            source *= len(target)
+    nx.draw_networkx_labels(G, graph_pos, font_size=node_text_size,
+                            font_family=text_font)
 
-    return [(x,y,float(z)) for x,y,z in zip(source,target,weights)]
+    # if labels is None:
+    #    labels = G.nodes()
+    # edge_labels = dict(zip(G.edges(), labels))
+    # nx.draw_networkx_edge_labels(G, graph_pos)
 
-
-def make_verts(source_id, attrs = None):
-    '''
-    :param source_id:
-    :param attrs:
-    :return:
-    '''
+    plt.show()
 
 
-def make_partitions(g, optimize=True):
+def get_pagerank(g):
+    return nx.pagerank(g)
+
+
+def get_partitions(g, optimize=True):
 
     p0 = community.best_partition(g)
 
@@ -47,18 +58,20 @@ def make_partitions(g, optimize=True):
         p0 = community.best_partition(g, partition=p1)
         p1 = community.best_partition(g, partition=p0)
 
-    return [[k for k in p1.keys() if p1[k] == v] for v in set(p1.values())]
+    return p1
 
 
-def make_graph(df, partitions=False, optimize=False):
+def make_graph(df, similarity_matrix=None):
 
-    edges = make_graph(target['id'], followers, apis)
+    g = nx.Graph()
 
-    g = nx.Graph(data=edges)
-
-    if partitions:
-        return g, make_partitions(g, optimize=optimize)
+    for i, user1_id in enumerate(df.index[:-1]):
+        for j, user2_id in enumerate(df.index[i+1:]):
+            if similarity_matrix != None:
+                if similarity_matrix[i,j] > 0:
+                    g.add_edge(user1_id, user2_id,
+                               weight=similarity_matrix[i,j])
+            else:
+                g.add_edge(user1_id, user2_id, weight=1)
 
     return g
-
-

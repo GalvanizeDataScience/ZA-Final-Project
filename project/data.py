@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
+import pandas as pd
 import twitter
 import time
 from cache import get_cache, make_cache
 from parse import parse_user_data
+
 
 URLS = ('url', 'urls')
 
@@ -16,7 +18,7 @@ def __traverse(in_dict, lookup):
     return d
 
 
-def get_user_info(api, user_id=None, screen_name=None):
+def get_user_info(db, api, user_id=None, screen_name=None):
     '''
     api: twitter.Api oauth login object
     user_id: twitter user id as integer (Optional)
@@ -26,41 +28,41 @@ def get_user_info(api, user_id=None, screen_name=None):
     '''
 
     if user_id:
-        user_info = get_cache(user_id, 'info')
+        user_info = get_cache(db, user_id, 'info')
 
         if user_info == None:
             user_info = api.GetUser(user_id=user_id).AsDict()
             user_info = __traverse(user_info, ('url', 'urls'))
-            make_cache(user_info, user_info['id'], 'info')
+            make_cache(db, user_info, user_info['id'], 'info')
 
     else:
         user_info = api.GetUser(screen_name=screen_name).AsDict()
         user_info = __traverse(user_info, URLS)
-        make_cache(user_info, user_info['id'], 'info')
+        make_cache(db, user_info, user_info['id'], 'info')
 
     return user_info
 
 
-def get_user_tweets(api, user_id):
+def get_user_tweets(db, api, user_id):
     '''
     api: twitter.Api oauth login object
     user_id: twitter user id as integer
 
     return: List of integer ids following the user_id
     '''
-    tweets = get_cache(user_id, 'tweets')
+    tweets = get_cache(db, user_id, 'tweets')
 
     if tweets == None:
         tweets = api.GetUserTimeline(user_id = user_id,
                                      count = 200,
                                      trim_user = True)
         tweets = [__traverse(tweet.AsDict(), URLS) for tweet in tweets]
-        make_cache(tweets, user_id, 'tweets')
+        make_cache(db, tweets, user_id, 'tweets')
 
     return tweets
 
 
-def get_user_followers(api, user_id):
+def get_user_followers(db, api, user_id):
     '''
     api: twitter.Api oauth login object
     user_id: twitter user id as integer
@@ -68,16 +70,16 @@ def get_user_followers(api, user_id):
     return: List of integer ids following the user_id
     '''
 
-    followers = get_cache(user_id, 'followers')
+    followers = get_cache(db, user_id, 'followers')
 
     if followers == None:
         followers = api.GetFollowerIDs(user_id = user_id)
-        make_cache(followers, user_id, 'followers')
+        make_cache(db, followers, user_id, 'followers')
 
     return followers
 
 
-def get_user_following(api, user_id):
+def get_user_following(db, api, user_id):
     '''
     api: twitter.Api oauth login object
     user_id: twitter user id as integer
@@ -85,16 +87,16 @@ def get_user_following(api, user_id):
     return: List of integer ids following the user_id
     '''
 
-    following = get_cache(user_id, 'following')
+    following = get_cache(db, user_id, 'following')
 
     if following == None:
         following = api.GetFriendIDs(user_id = user_id)
-        make_cache(following, user_id, 'following')
+        make_cache(db, following, user_id, 'following')
 
     return following
 
 
-def get_user_lists(api, user_id=None, screen_name=None):
+def get_user_lists(db, api, user_id=None, screen_name=None):
     '''
     api: twitter.Api oauth login object
     user_id: twitter user id as integer (Optional)
@@ -103,17 +105,17 @@ def get_user_lists(api, user_id=None, screen_name=None):
     return: twitter.user object
     '''
 
-    user_lists = get_cache(user_id, 'list')
+    user_lists = get_cache(db, user_id, 'list')
 
     if user_lists == None:
         user_lists = api.GetListsList(None, user_id=user_id)
         user_lists = [__traverse(ul.AsDict(), URLS) for ul in user_lists]
-        make_cache(user_lists, user_id, 'list')
+        make_cache(db, user_lists, user_id, 'list')
 
     return user_lists
 
 
-def get_user_data(api, screen_name=None, user_id=None, ctr=0):
+def get_user_data(db, api, name=None, id=None, ctr=0):
     '''
     :param api:
     :param screen_name:
@@ -124,54 +126,57 @@ def get_user_data(api, screen_name=None, user_id=None, ctr=0):
 
     try:
 
-        target = get_user_info(api, screen_name=screen_name, user_id=user_id)
-        tweets = get_user_tweets(api, user_id=target['id'])
-        user_lists = get_user_lists(api, user_id=target['id'])
+        target = get_user_info(db, api, screen_name=name, user_id=id)
+        tweets = get_user_tweets(db, api, user_id=target['id'])
+        user_lists = get_user_lists(db, api, user_id=target['id'])
 
         if 'followers_count' in target:
             if target['followers_count'] > 50000:
-                followers = 'Many'
+                return None
             else:
-                followers = get_user_followers(api, user_id=target['id'])
+                followers = get_user_followers(db, api, user_id=target['id'])
         else:
-            followers = get_user_followers(api, user_id=target['id'])
+            followers = get_user_followers(db, api, user_id=target['id'])
 
         if 'friends_count' in target:
             if target['friends_count'] > 50000:
-                following = 'Many'
+                return None
             else:
-                following = get_user_following(api, user_id=target['id'])
+                following = get_user_following(db, api, user_id=target['id'])
         else:
-            following = get_user_following(api, user_id=target['id'])
+            following = get_user_following(db, api, user_id=target['id'])
 
         return target, tweets, followers, following, user_lists
 
     except (twitter.error.TwitterError, twitter.TwitterError) as err:
         if str(err)[0:3] == 'Not' or ctr > 15:
-            print 'User is protected:', user_id
+            print 'User is protected:', id
 
         elif '63' in str(err):
-            print 'User has been suspended:', user_id
+            print 'User has been suspended:', id
 
         elif '88' in str(err):
-            print 'Rate Limit reached on:', user_id
+            print 'Rate Limit reached on:', id
             ctr += 1
             time.sleep(60)
-            return get_user_data(api,
-                                 screen_name = screen_name,
-                                 user_id = user_id,
-                                 ctr = ctr)
+            return get_user_data(db, api, name = name, id = id, ctr = ctr)
+
         else:
             print err
 
         return None
 
 
-def get_follower_data(apis, followers, parse_data=False, as_df=False):
+def get_follower_data(db, apis, followers,
+                      parse_data=True, start=0, sleeper=0):
     '''
-    apis:
-    followers:
-    return:
+    :param db:
+    :param apis:
+    :param followers:
+    :param parse_data:
+    :param start:
+    :param sleeper:
+    :return:
     '''
 
     num_apis = len(apis)
@@ -180,23 +185,28 @@ def get_follower_data(apis, followers, parse_data=False, as_df=False):
 
     result = {}
 
+    ### optimize this to make one call for all followers to the database
+    ### for all items that are returned, save them appropriately
+    ### for all items that are not returned, query them using standard calls
+    ###   - this may require rejiggering how the type-specific calls handle
+    ###   - cached data
+
+
     for ind, id in enumerate(followers):
 
-        print ind, 'of', num_followers, '. On id:', id
+        print ind+1, 'of', num_followers, '. On id:', id
 
         n = ind % num_apis
 
-        user_data = get_user_data(apis[n], user_id=id)
+        user_data = get_user_data(db, apis[n], id=id)
 
         result[id] = parse_user_data(user_data, parse_data)
 
+        if n == 0 and ind > start and sleeper:
+            time.sleep(sleeper)
 
-    if as_df:
-        import pandas as pd
-        # transpose so that user_id are rows and columsn are the fields
-        # dropna() will remove users that had protected or overly large
-        # follower/friends lists. It will NOT remove users with no tweets / no
-        # lists
-        return pd.DataFrame(data=result).transpose().dropna()
-
-    return result
+    # transpose so that user_id are rows and columsn are the fields
+    # dropna() will remove users that had protected or overly large
+    # follower/friends lists. It will NOT remove users with no tweets / no
+    # lists
+    return pd.DataFrame(data=result).transpose().dropna()

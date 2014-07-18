@@ -45,11 +45,11 @@ def parse_user_tweets(tweets):
     return result
 
 def parse_user_followers(followers):
-    return tuple(followers)
+    return set(followers)
 
 
 def parse_user_following(following):
-    return tuple(following)
+    return set(following)
 
 
 def parse_user_lists(lists):

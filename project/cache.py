@@ -1,25 +1,23 @@
 # -*- coding: utf-8 -*-
-import pymongo
 
-def get_cache(user_id, cache_type):
+def get_cache(db, user_id, cache_type):
     '''
     user_id:
     cache_type:
 
     return:
     '''
-    conn = pymongo.MongoClient("localhost", 27017)
-    db = conn.twitter
     coll = db.data
 
     tmp = coll.find_one({'id': user_id, 'type': cache_type})
+
     if tmp:
         return tmp['data']
     else:
         return None
 
 
-def make_cache(data, user_id, cache_type):
+def make_cache(db, data, user_id, cache_type):
     '''
     data:
     user_id:
@@ -28,8 +26,6 @@ def make_cache(data, user_id, cache_type):
     return: None
     '''
 
-    conn = pymongo.MongoClient("localhost", 27017)
-    db = conn.twitter
     coll = db.data
 
     # The update+upsert does two things:
