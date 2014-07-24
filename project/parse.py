@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import pandas as pd
 
 # Source: http://stackoverflow.com/posts/6027703/revisions
 def __flatten(d, lkey=''):
@@ -12,37 +13,42 @@ def __flatten(d, lkey=''):
     return ret
 
 
-def parse_user_info(info):
-
-    TO_KEEP = {'followers_count', 'friends_count', 'lang', 'name','protected',
-               'screen_name','location', 'status_user_mentions',
-               'status_urls', 'status_hashtags'}
-
-    d = __flatten(info.copy())
-    for k in d.keys():
-        if k not in TO_KEEP: del d[k]
-    if 'status_user_mentions' in d:
-        d['status_user_mentions'] = [x['id'] for x in d['status_user_mentions']]
-
-    return d
+def parse_user_info(info, src=''):
+    if src in info:
+        return info[src]
+    return ''
 
 
-def parse_user_tweets(tweets):
-
-    if not type(tweets) == list: return tweets
-
-    TO_KEEP = {'text', 'geo_coordinates', 'place_bounding_box_coordinates',
-               'place_id', 'user_mentions', 'hashtags', 'urls'}
-
-    result = []
+def parse_user_tweets(tweets, src='', sub=None, sub_cond=None, cond=None):
+    if not type(tweets) == list: return []
+    result = set()
     for tweet in tweets:
-        d = __flatten(tweet.copy())
-        for k in d.keys():
-            if k not in TO_KEEP: del d[k]
-        if 'user_mentions' in d:
-            d['user_mentions'] = [x['id'] for x in d['user_mentions']]
-        result.append(d)
+        d = tweet if src in tweet else __flatten(tweet)
+
+        if sub != None and sub_cond != None and src in d:
+            for x in d[src]:
+                if d[sub_cond] == cond:
+                    result.add(x[sub])
+
+        elif sub != None and src in d:
+            for x in d[src]:
+                result.add(x[sub])
+
+        elif src in d:
+            if sub_cond != None:
+                if d[sub_cond] == cond and type(d[src]) == list:
+                    for x in d[src]:
+                        result.add(x)
+                elif d[sub_cond] == cond and type(d[src]) != list:
+                    result.add(d[src])
+
+            else:
+                if type(d[src]) == list:
+                    for x in d[src]:
+                        result.add(x)
+
     return result
+
 
 def parse_user_followers(followers):
     return set(followers)
@@ -52,39 +58,41 @@ def parse_user_following(following):
     return set(following)
 
 
-def parse_user_lists(lists):
-    if not type(lists) == list:
-        return lists
-    elif len(lists) == 0:
-        return lists
-
-    TO_KEEP = {'id', 'name', 'member_count', 'subscriber_count',
-               'user_id', 'user_url'}
-
-    result = []
-    for ul in lists:
-        d = __flatten(ul.copy())
-        for k in d.keys():
-            if k not in TO_KEEP: del d[k]
-        result.append(d)
-    return result
+def parse_user_lists(user_list):
+    if not type(user_list) == list: return set()
+    return set([ul['id'] for ul in user_list])
 
 
-def parse_user_data(user_data, parse_data=True):
+def parse_dataframe(in_df):
 
-    if not user_data: return None
+    df = pd.DataFrame()
+    df['id'] = in_df.index
+    df = df.set_index('id')
 
-    uinfo, utweets, ufollowers, ufollowing, ulists = user_data
+    df['screen_name'] = in_df['info'].apply(parse_user_info, src='screen_name')
+    df['name'] = in_df['info'].apply(parse_user_info, src='name')
+    df['location'] = in_df['info'].apply(parse_user_info, src='location')
 
-    if parse_data:
-        return {'info': parse_user_info(uinfo),
-                'tweets': parse_user_tweets(utweets),
-                'followers': parse_user_followers(ufollowers),
-                'following': parse_user_following(ufollowing),
-                'lists': parse_user_lists(ulists)}
+    df['tweets'] = in_df['tweets'].apply(parse_user_tweets,
+                                        src='text', sub_cond='lang', cond='en')
 
-    return {'info': uinfo,
-            'tweets': utweets,
-            'followers': ufollowers,
-            'following': ufollowing,
-            'lists': ulists}
+    df['mentions'] = in_df['tweets'].apply(parse_user_tweets,
+                                           src='user_mentions', sub='id')
+
+    df['hashtags'] = in_df['tweets'].apply(parse_user_tweets, src='hashtags')
+
+    df['urls'] = in_df['tweets'].apply(parse_user_tweets, src='urls', sub=0)
+
+    df['followers'] = in_df['followers'].apply(parse_user_followers)
+    df['following'] = in_df['following'].apply(parse_user_following)
+    df['list'] = in_df['list'].apply(parse_user_lists)
+
+    return df
+
+
+def filter_dataframe(in_df, min_followers=1, min_following=1, min_tweets=0):
+    df = in_df.copy()
+    df = df[df['followers'].apply(len) >= min_followers]
+    df = df[df['following'].apply(len) >= min_following]
+    df = df[df['tweets'].apply(len) >= min_tweets]
+    return df
