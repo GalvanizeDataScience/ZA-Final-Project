@@ -11,22 +11,22 @@ def convert_id_to_sn(user_id, df, db, api):
 
     return info['screen_name']
 
-def get_screen_names(dict_of_ids, df, db, api):
+def get_screen_names(data_in, target, df, db, api):
 
-    d = deepcopy(dict_of_ids)
+    d = deepcopy(data_in)
 
-    for k0,v0 in dict_of_ids.items():
+    for lvl in d:
 
-        for k1, v1 in v0.items():
+        for cid in d[lvl]:
 
-            for i, tag in enumerate(v1):
+            for i, tag in enumerate(d[lvl][cid][target]):
 
-                sn = convert_id_to_sn(d[k0][k1][i], df, db, api)
+                sn = convert_id_to_sn(tag, df, db, api)
 
                 if sn == None:
-                    d[k0][k1][i] = '@<Protected_User>'
+                    d[lvl][cid][target][i] = '@<Protected_User>'
 
                 else:
-                    d[k0][k1][i] = '@' + sn
+                    d[lvl][cid][target][i] = '@' + sn
 
     return d

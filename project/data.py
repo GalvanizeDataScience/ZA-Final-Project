@@ -25,27 +25,37 @@ API_ARGS = {'list': {},
 def __traverse(in_dict, lookup):
 
     d = in_dict.copy()
+
     for k, v in d.iteritems():
+
         if k in lookup and type(v) == dict:
             d[k] = d[k].items()
+
         elif type(v) == dict:
             d[k] = __traverse(v, lookup)
+
     return d
 
 
 def __get_cache(db, followers):
 
     result = {}
+
     curs = db.data.find({'id': {'$in': followers}})
+
     for data in curs:
+
         uid = data['id']
+
         dtype = data['type']
 
         if uid not in result:
             result[uid] = {}
+
         result[uid][dtype] = data['data']
 
     curs.close()
+
     return result
 
 
@@ -72,18 +82,19 @@ def get_user_data_by_type(db, api, screen_name=None,
     data = __get_cache_for_user(db, user_id, data_type)
 
     if data == None:
-        to_eval  = 'api.' + API_CALLS[data_type] + \
-                   '(screen_name=screen_name, user_id=user_id, ' + \
-                   '**API_ARGS[data_type])'
-        data = eval(to_eval)
 
-        if type(data) not in (dict, list):
-            if data_type == 'list':
-                data = [__traverse(x.AsDict(), URLS) for x in data]
-            elif data_type == 'tweets':
-                data = [x.AsDict() for x in data]
-            elif data_type == 'info':
-                data = __traverse(data.AsDict(), URLS)
+        data = eval('api.' + API_CALLS[data_type] + \
+                    '(screen_name=screen_name, user_id=user_id, ' + \
+                    '**API_ARGS[data_type])')
+
+        if data_type == 'list':
+            data = [__traverse(x.AsDict(), URLS) for x in data]
+
+        elif data_type == 'tweets':
+            data = [__traverse(x.AsDict(), URLS) for x in data]
+
+        elif data_type == 'info':
+            data = __traverse(data.AsDict(), URLS)
 
         __make_cache_for_user(db, data, user_id, data_type)
 
@@ -108,7 +119,7 @@ def get_user_data(db, api, name=None, uid=None, ctr=0):
                                        data_type='tweets')
 
         user_lists = get_user_data_by_type(db, api, user_id=target['id'],
-                                           data_type='tweets')
+                                           data_type='list')
 
         followers = get_user_data_by_type(db, api, user_id=target['id'],
                                           data_type='followers')
@@ -128,9 +139,8 @@ def get_user_data(db, api, name=None, uid=None, ctr=0):
 
         elif '88' in str(err):
             print 'Rate Limit reached on:', uid
-            ctr += 1
             time.sleep(60)
-            return get_user_data(db, api, name = name, uid = uid, ctr = ctr)
+            return get_user_data(db, api, name = name, uid = uid, ctr = ctr+1)
 
         else:
             print err
@@ -139,7 +149,9 @@ def get_user_data(db, api, name=None, uid=None, ctr=0):
 
 
 def get_follower_data(db, apis, followers):
+
     num_apis = len(apis)
+
     num_followers = len(followers)
 
     # Begin by doing a mass-check for cached data
@@ -159,7 +171,7 @@ def get_follower_data(db, apis, followers):
 
         result[uid] = user_data
 
-    # transpose so that user_id are rows and columsn are the fields
+    # transpose so that user_id are rows and columns are the fields
     # dropna() will remove users that had protected or overly large
     # follower/friends lists. It will NOT remove users width no tweets / no
     # lists

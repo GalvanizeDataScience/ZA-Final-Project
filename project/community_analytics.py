@@ -4,6 +4,7 @@ import networkx as nx
 import numpy as np
 from community import modularity, partition_at_level
 import happy
+import d3py
 
 def __extract_tweets(df):
 
@@ -15,7 +16,7 @@ def __extract_tweets(df):
     return twts
 
 
-def get_topics(df, stops=set(), tweets=None, num=5, alpha=1, beta=0.1):
+def get_topics(df, stops=set(), tweets=None, num=5):
 
     if tweets == None:
         tweets = __extract_tweets(df)
@@ -24,8 +25,7 @@ def get_topics(df, stops=set(), tweets=None, num=5, alpha=1, beta=0.1):
 
     tweets = tweets.count_words().dict_trim_by_keys(keys=stops)
 
-    model = gl.text.topic_model.create(dataset = tweets, num_topics = num,)
-                                       #alpha = alpha, beta = beta)
+    model = gl.text.topic_model.create(dataset = tweets, num_topics = num)
 
     topics = model.get_topics(range(num))
 
@@ -65,7 +65,9 @@ def get_density(subgraph):
 
     return nx.density(subgraph)
 
+
 def get_most_connected(subgraph, num=5):
+
     try:
         pr = nx.pagerank(subgraph)
 
@@ -87,46 +89,58 @@ def get_sentiment(df, tweets=None):
     return np.mean(sentiments), np.std(sentiments)
 
 
-def get_community_analytics(df, graph, num_levels, detail=3):
+def get_community_analytics(df, graph, num_levels, detail=3,
+                            community_modularity=None):
 
     stops = gl.text.util.stopwords(lang='en')
-    stops.update(['rt', 'http', 'https', 'ly', 'amp', 'don'])
+
+    # extra stop words, mostly for rt, url links, unicode, and compound words
+    stops.update(['rt', 'http', 'https', 'ly', 'amp', 'don', 'wasn', 're',
+                  'aren', 'didn', 'how', 'nt', 'co', 've', 'gt', 'll',
+                  'bit'])
+    # get rid of arbitrary single numbers
     stops.update(map(str, range(11)))
 
-    data   = {}
-    fields = ('topics', 'hashtags', 'mentioned', 'sentiment',
-              'density', 'comm_size', 'most_connected')
 
-    for field in fields:
-        data[field] = {x:{} for x in range(num_levels)}
+    data = {x:{} for x in range(num_levels)}
 
-    for lvl in range(num_levels):
+    for lvl in xrange(num_levels):
 
         col_name = 'cid' + str(lvl)
 
         num_of_communities = max(df[col_name])
 
-        for cid in xrange(num_of_communities):
+        for cid in xrange(num_of_communities + 1): # +1 for inclusive rng
 
-            community = df[df[col_name] == cid]
-            subgraph = graph.subgraph(community.index.tolist())
-            tweets = __extract_tweets(community)
+            if cid not in data[lvl]:
+                data[lvl][cid] = {}
 
-            data['comm_size'][lvl][cid] = community.shape[0]
+            subdf = df[df[col_name] == cid]
 
-            data['topics'][lvl][cid] = get_topics(community, stops,
+            subgraph = graph.subgraph(subdf.index.tolist())
+
+            tweets = __extract_tweets(subdf)
+
+            data[lvl][cid]['comm_size'] = subdf.shape[0]
+
+            data[lvl][cid]['topics'] = get_topics(subdf, stops,
                                                   tweets=tweets, num=detail)
 
-            data['hashtags'][lvl][cid] = get_hashtags(community, num=detail)
+            data[lvl][cid]['hashtags'] = get_hashtags(subdf, num=detail)
 
-            data['mentioned'][lvl][cid] = get_mentions(community, num=detail)
+            data[lvl][cid]['mentioned'] = get_mentions(subdf, num=detail)
 
-            data['most_connected'][lvl][cid] = get_most_connected(subgraph,
+            data[lvl][cid]['most_connected'] = get_most_connected(subgraph,
                                                                   num=detail)
 
-            data['density'][lvl][cid] = get_density(subgraph)
+            data[lvl][cid]['density'] = get_density(subgraph)
 
-            data['sentiment'][lvl][cid] = get_sentiment(community, tweets)
+            data[lvl][cid]['sentiment'] = get_sentiment(subdf, tweets)
+
+            if community_modularity != None:
+                data[lvl][cid]['modularity'] = community_modularity[lvl]
+            else:
+                data[lvl][cid]['modularity'] = None
 
     return data
 
@@ -137,18 +151,44 @@ def get_community_assignment(in_df, graph, dendrogram):
 
     community_modularity = {}
 
-    ctr = len(dendrogram) - 1
-
     for i in range(len(dendrogram)):
 
         partition = partition_at_level(dendrogram, i)
 
-        col_name = 'cid' + str(ctr)
+        df['cid' + str(i)] = [partition[ind] for ind in df.index]
 
-        df[col_name] = [partition[ind] for ind in df.index]
-
-        community_modularity[ctr] = modularity(partition, graph)
-
-        ctr -= 1
+        community_modularity[i] = modularity(partition, graph)
 
     return df, community_modularity
+
+
+def create_community_graph(user_info, data, dendrogram):
+
+    g = nx.Graph()
+
+    sn = user_info['id']
+
+    fields = ('followers_count', 'friends_count', 'id', 'name', 'description')
+
+    root_node = {k:v for k,v in user_info if k in fields}
+
+    g.add_node(sn, attr_dict=user_info)
+
+    for i in data:
+
+        dmap = None if i + 1 >= len(dendrogram) else dendrogram[i + 1]
+
+        for j in data[i]:
+
+            child_node = str(i) + '-' + str(j)
+            g.add_node(child_node, attr_dict=data[i][j])
+
+            parent_node = sn if dmap == None else str(i+1) +'-'+ str(dmap[j])
+            g.add_edge(child_node, parent_node)
+
+    return g
+
+
+def create_community_json(graph):
+    return d3py.json_graph.node_link_data(graph)
+    #return nx.readwrite.json_graph.node_link_data(graph)

@@ -9,27 +9,33 @@ from similarity import make_similarity_dataframe
 from graph import make_graph
 from community import generate_dendrogram
 from community_analytics import (get_community_assignment,
-                                 get_community_analytics)
+                                 get_community_analytics,
+                                 create_community_graph,
+                                 create_community_json)
 from conversions import get_screen_names
 
 API_PATH = '../api_keys/'
 PKL_PATH = '../pickles/'
 DB_NAME = 'twitter'
 
+
 def load_info_for(screen_name=None, user_id=None,
-                  force_db_update = False, force_twitter_update=False):
+                  force_db_update = False, force_twitter_update=False,
+                  debug=False):
 
     if screen_name == None and user_id == None:
         raise Exception('Please enter an id or name')
 
+    # Check to see if there are pickles for the user. Note that this will be
+    # overriden
     sn_file = PKL_PATH + str(screen_name) + '.pkl'
-    id_file = PKL_PATH + str(user_id) + '.pkl'
+    sn_file_debug = PKL_PATH + str(screen_name) + '_debug.pkl'
+
+    if os.path.isfile(sn_file_debug) and not force_db_update and debug:
+        return pickle.load(open(sn_file_debug, 'rb'))
 
     if os.path.isfile(sn_file) and not force_db_update:
         return pickle.load(open(sn_file, 'rb'))
-
-    if os.path.isfile(id_file) and not force_db_update:
-        return pickle.load(open(id_file, 'rb'))
 
     apis = oauth_login(API_PATH)
 
@@ -54,44 +60,49 @@ def load_info_for(screen_name=None, user_id=None,
 
     df = parse_dataframe( filter_dataframe(raw_df) )
 
-    del raw_df
-
     df_similarity = make_similarity_dataframe(df)
 
     graph = make_graph(df, df_similarity)
 
     dendrogram = generate_dendrogram(graph)
 
-    del df_similarity
-
     df, modularity = get_community_assignment(df, graph, dendrogram)
 
     num_levels = len(dendrogram)
 
-    data = get_community_analytics(df, graph, num_levels)
+    data = get_community_analytics(df, graph, num_levels,
+                                   community_modularity = modularity)
 
-    data['mentioned'] = get_screen_names(data['mentioned'], df, db, apis[0])
+    data = get_screen_names(data, 'mentioned', df, db, apis[0])
 
-    data['most_connected'] = get_screen_names(data['most_connected'],
-                                              df, db, apis[0])
+    data = get_screen_names(data, 'most_connected', df, db, apis[0])
 
     conn.close()
 
-    # dump all those things into a pickle
-    pickle.dump((df, graph, dendrogram, data), open(sn_file, 'wb'))
+    community_graph = create_community_graph(user_info, data, dendrogram)
 
-    # return all of those things
-    return df, graph, dendrogram, data
+    community_json = create_community_json(community_graph)
+
+    pickle.dump((raw_df, df, df_similarity, dendrogram, data,
+                 community_graph, community_json), open(sn_file_debug, 'wb'))
+
+    pickle.dump(community_json, open(sn_file, 'wb'))
+
+    if debug:
+        return (raw_df, df, df_similarity, dendrogram, data,
+                community_graph, community_json)
+
+    return community_json
 
 #------------------------------
-# screen_name = 'graphlabteam'
-# user_id = 1447135560
+screen_name = 'graphlabteam'
+user_id = 1447135560
 #------------------------------
 # screen_name = 'ZipfianAcademy'
 # user_id = 1244850380
 #------------------------------
-screen_name = 'Saber_Metrics'
-user_id = 625183821
+# screen_name = 'Saber_Metrics'
+# user_id = 625183821
 #------------------------------
 # screen_name = 'stripe'
 # user_id = None
@@ -100,12 +111,9 @@ user_id = 625183821
 # user_id = None
 #------------------------------
 
-df, graph, dendrogram, data = load_info_for(screen_name)
-print data['most_connected']
+data = load_info_for(screen_name)
 
 #   TODO
     # implement update logic that forcefully pulls data from twitter
-    # do i need to get subgraphs? // simplified graphs where community = node?
-
-    # visualize using pretty carto graphs
-    # convert topics to word map thing
+    # get community-based node-graph thing -- with attributes?
+    # graph -> json?
