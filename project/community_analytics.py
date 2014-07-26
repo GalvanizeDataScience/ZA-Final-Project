@@ -162,17 +162,9 @@ def get_community_assignment(in_df, graph, dendrogram):
     return df, community_modularity
 
 
-def create_community_graph(user_info, data, dendrogram):
+def create_community_graph(data, dendrogram):
 
-    g = nx.Graph()
-
-    sn = user_info['id']
-
-    fields = ('followers_count', 'friends_count', 'id', 'name', 'description')
-
-    root_node = {k:v for k,v in user_info if k in fields}
-
-    g.add_node(sn, attr_dict=user_info)
+    g = nx.DiGraph()
 
     for i in data:
 
@@ -183,12 +175,28 @@ def create_community_graph(user_info, data, dendrogram):
             child_node = str(i) + '-' + str(j)
             g.add_node(child_node, attr_dict=data[i][j])
 
-            parent_node = sn if dmap == None else str(i+1) +'-'+ str(dmap[j])
-            g.add_edge(child_node, parent_node)
+            g.node[child_node]['name'] = child_node
+            g.node[child_node]['group'] = i
+
+            if dmap != None:
+                parent_node = str(i+1) +'-'+ str(dmap[j])
+                g.add_edge(child_node, parent_node)
+                g.edge[child_node][parent_node]['value'] = 1
 
     return g
 
 
-def create_community_json(graph):
-    return d3py.json_graph.node_link_data(graph)
-    #return nx.readwrite.json_graph.node_link_data(graph)
+def create_community_json(graph, user_info):
+
+    community_json = d3py.json_graph.node_link_data(graph)
+
+    # Add user information info to the json file
+    community_json['root'] = {}
+    community_json['root']['id_'] = user_info['id']
+    community_json['root']['screen_name'] = user_info['screen_name']
+    community_json['root']['name_'] = user_info['name']
+    community_json['root']['description'] = user_info['description']
+    community_json['root']['friends_count'] = user_info['friends_count']
+    community_json['root']['followers_count'] = user_info['followers_count']
+
+    return community_json

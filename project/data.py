@@ -72,14 +72,18 @@ def __get_cache_for_user(db, user_id, cache_type):
 def __make_cache_for_user(db, data, user_id, cache_type):
 
     coll = db.data
-    coll.update({'id': user_id, 'type': cache_type}, {'$set': {'data': data}},
+    coll.update({'id': user_id, 'type': cache_type},
+                {'$set': {'data': data}},
                 upsert = True)
 
 
 def get_user_data_by_type(db, api, screen_name=None,
-                          user_id=None, data_type=None):
+                          user_id=None, data_type=None, force=False):
 
-    data = __get_cache_for_user(db, user_id, data_type)
+    if force:
+        data = None
+    else:
+        data = __get_cache_for_user(db, user_id, data_type)
 
     if data == None:
 
@@ -101,11 +105,12 @@ def get_user_data_by_type(db, api, screen_name=None,
     return data
 
 
-def get_user_data(db, api, name=None, uid=None, ctr=0):
+def get_user_data(db, api, name=None, uid=None, ctr=0, force=False):
 
     try:
         target = get_user_data_by_type(db, api, screen_name=name,
-                                       user_id=uid, data_type='info')
+                                       user_id=uid, data_type='info',
+                                       force=force)
 
         if 'followers_count' in target:
             if target['followers_count'] > FOLLOWERS_CAP:
@@ -116,16 +121,16 @@ def get_user_data(db, api, name=None, uid=None, ctr=0):
                 return None
 
         tweets = get_user_data_by_type(db, api, user_id=target['id'],
-                                       data_type='tweets')
+                                       data_type='tweets', force=force)
 
         user_lists = get_user_data_by_type(db, api, user_id=target['id'],
-                                           data_type='list')
+                                           data_type='list', force=force)
 
         followers = get_user_data_by_type(db, api, user_id=target['id'],
-                                          data_type='followers')
+                                          data_type='followers', force=force)
 
         following = get_user_data_by_type(db, api, user_id=target['id'],
-                                          data_type='following')
+                                          data_type='following', force=force)
 
         return target, tweets, followers, following, user_lists
 
@@ -148,14 +153,17 @@ def get_user_data(db, api, name=None, uid=None, ctr=0):
         return None
 
 
-def get_follower_data(db, apis, followers):
+def get_follower_data(db, apis, followers, force=False):
 
     num_apis = len(apis)
 
     num_followers = len(followers)
 
     # Begin by doing a mass-check for cached data
-    result = __get_cache(db, followers)
+    if force:
+        result = {}
+    else:
+        result = __get_cache(db, followers)
 
     for ind, uid in enumerate(followers):
 
@@ -167,7 +175,7 @@ def get_follower_data(db, apis, followers):
 
         n = ind % num_apis
 
-        user_data = get_user_data(db, apis[n], uid=uid)
+        user_data = get_user_data(db, apis[n], uid=uid, force=force)
 
         result[uid] = user_data
 

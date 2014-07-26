@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <title>
+      Eric's really fucking cool shit
+    </title>
+    <link rel='stylesheet'
+          type='text/css'
+          href="{{url_for('static', filename='style.css')}}">
+
+<body>
+
+    <div class = "search">
+
+    </div>
+
+    <div class = "target">
+
+        <p class="target">id:
+            <span class = "id"></span></p>
+        <p class="target">Name:
+            <span class = "name"></span></p>
+        <p class="target">Description:
+            <span class = "description"></span></p>
+        <p class="target">Followers:
+            <span class = "followers_count"></span></p>
+        <p class="target">Following:
+            <span class = "friends_count"></span></p>
+
+    </div>
+
+    <div class = "graph"></div>
+
+    <div class = "info">
+
+        <p class="community">Most Connected Users:
+            <span class = "most_connected"></span></p>
+        <p class="community">Trending Hashtags:
+            <span class = "hashtags"></span></p>
+        <p class="community">Most Mentioned:
+            <span class = "mentioned"></span></p>
+        <p class="community">Trending Topics:
+            <span class = "topics"></span></p>
+        <p class="community">Sentiment:
+            <span class = "sentiment"></span></p>
+        <p class="community">Community Size:
+            <span class = "comm_size"></span></p>
+        <p class="community">Density:
+            <span class = "density"></span></p>
+        <p class="community">Modularity*:
+            <span class = "modularity"></span></p>
+    </div>
+
+    <div class = "footer">
+        <input type="color" name="favcolor">
+    </div>
+
+</body>
+
+<script> var graph = {{ myjson | tojson | safe }} </script>
+<script src="{{url_for('static', filename='d3.v3.min.js')}}"></script>
+<script src="{{url_for('static', filename='jquery-2.1.1.min.js')}}"></script>
+<script src="{{url_for('static', filename='graph.js')}}"></script>
